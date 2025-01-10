@@ -1,0 +1,51 @@
+name: plots
+channels:
+  - conda-forge
+dependencies:
+  - bzip2=1.0.8=hfdf4475_7
+  - ca-certificates=2024.12.14=h8857fd0_0
+  - libblas=3.9.0=26_osx64_openblas
+  - libcblas=3.9.0=26_osx64_openblas
+  - libcxx=19.1.6=hf95d169_1
+  - libffi=3.4.2=h0d85af4_5
+  - libgfortran=5.0.0=13_2_0_h97931a8_3
+  - libgfortran5=13.2.0=h2873a65_3
+  - liblapack=3.9.0=26_osx64_openblas
+  - liblzma=5.6.3=hd471939_1
+  - libopenblas=0.3.28=openmp_hbf64a52_1
+  - libsqlite=3.47.2=hdb6dae5_0
+  - libzlib=1.3.1=hd23fc13_2
+  - llvm-openmp=19.1.6=ha54dae1_0
+  - ncurses=6.5=hf036a51_1
+  - numpy=2.2.1=py310h2874b4e_0
+  - openssl=3.4.0=hc426f3f_1
+  - pandas=2.2.3=py310ha53a654_1
+  - pip=24.3.1=pyh8b19718_2
+  - python=3.10.16=h5acdff8_1_cpython
+  - python-dateutil=2.9.0.post0=pyhff2d567_1
+  - python-tzdata=2024.2=pyhd8ed1ab_1
+  - python_abi=3.10=5_cp310
+  - pytz=2024.1=pyhd8ed1ab_0
+  - readline=8.2=h9e318b2_1
+  - setuptools=75.6.0=pyhff2d567_1
+  - six=1.17.0=pyhd8ed1ab_0
+  - tk=8.6.13=h1abcd95_1
+  - tzdata=2024b=hc8b5060_0
+  - wheel=0.45.1=pyhd8ed1ab_1
+  - pip:
+      - contourpy==1.3.1
+      - cycler==0.12.1
+      - fonttools==4.55.3
+      - joblib==1.4.2
+      - kiwisolver==1.4.8
+      - matplotlib==3.10.0
+      - packaging==24.2
+      - pillow==11.1.0
+      - plotting-utils==0.1.2
+      - pyparsing==3.2.1
+      - scipy==1.15.0
+      - seaborn==0.13.2
+      - statannotations==0.7.1
+      - textalloc==1.1.6
+      - tqdm==4.67.1
+prefix: /Users/ieo7295/miniforge3/envs/plots
