@@ -17,76 +17,91 @@ tests = [ df['sample'].str.contains('IME_CTRL'), df['sample'].str.contains('IME_
          df['sample'].str.contains('IMT_CTRL'), df['sample'].str.contains('IMT_CTLA4'), df['sample'].str.contains('IMT_COMBO')] 
 df['origin'] = np.select(tests, ['IME_CTRL','IME_dep','IMT_CTRL','IMT_CTLA4','IMT_COMBO'], default='ref')
 
+#IME_CTRL vs IME_dep common_clones
+df_common= df.groupby('origin')
+ctrl_cl = df_common.get_group('IME_CTRL').index
+dep_cl= df_common.get_group('IME_dep').index
+
+common_c = ctrl_cl.intersection(dep_cl)
+un_ctrl = ctrl_cl.difference(dep_cl)  
+un_dep = dep_cl.difference(ctrl_cl) 
 
 
 
-#IME_CTRL vs IME_dep rel_fre, cum_freq of common_cl
-for s in df['origin'].unique():
-    df_ = df.query('origin == @s')
-    c = df_.index
-    if s == 'IME_CTRL':
-        ctrl_cl= set(c)
-    elif s == 'IME_dep':
-        dep_cl = set(c)
-
-common_c = ctrl_cl & dep_cl
-un_ctrl = ctrl_cl - dep_cl
-un_dep = dep_cl - ctrl_cl
-
-print(f"n common clones between IME_CTRL and IME_dep: {len(common_c)}")
-print(f"n unique clones in IME_CTRL: {len(un_ctrl)}")
-print(f"n unique clones in IME_dep: {len(un_dep)}")
-df_c_ctrl= df.query('origin == "IME_CTRL"').loc[df.query('origin == "IME_CTRL"').index.isin(common_c)]
-df_c_dep= df.query('origin == "IME_dep"').loc[df.query('origin == "IME_dep"').index.isin(common_c)]
-print(df_c_ctrl)
-print(df_c_dep)
-
-
-
-
-#n clones
-df_ = (
-    df.groupby('sample')
-    .apply(lambda x: x.index.unique().size)
-    .sort_values(ascending=False)
-    .to_frame('n_clones')
-    .reset_index()
+#GBC,sample,origin,freq,cum_freq
+df_freq=(df.reset_index().rename(columns={'index':'GBC'})  
+        .groupby('sample')
+        .apply(lambda x: x.assign(
+        freq=x['read_count'] / x['read_count'].sum(),    
+        cum_freq=(x['read_count'] / x['read_count'].sum()).cumsum()
+    ))
+    .reset_index(drop=True)
 )
-#df_.to_csv(os.path.join(path_results, "n_clones.csv"))
 
 
-
-#Shannon entropies
+#sample, Shannon entropy, origin, n_clones
 SH = []
-for s in df['sample'].unique():
-    df_ = df.query('sample==@s')
-    x = df_['read_count']/df_['read_count'].sum()
-    SH.append(-np.sum(np.log10(x) * x))
-df_ = (pd.Series(SH, index=df['sample'].unique())
-       .to_frame('SH')
-       .sort_values(by='SH', ascending=False)
-       .reset_index().rename(columns={'index':'sample'})
-       .merge(df[['sample','origin']], on='sample')
-       .drop_duplicates()
-       .set_index('sample'))
+for s in df_freq['sample'].unique():
+    df_ = df_freq.query('sample==@s')
+    x = df_['freq']
+    SH.append(-np.sum( np.log10(x) * x ))
 
-#df_.to_csv(os.path.join(path_results, "shannon_entropy.csv"))
+df_sample = (
+    pd.Series(SH, index=df_freq['sample'].unique())
+    .to_frame('SH')
+    .sort_values(by='SH', ascending=False)
+    .reset_index().rename(columns={'index':'sample'})
+    .merge(df_freq[['sample', 'origin']], on='sample')
+    .drop_duplicates()
+    .set_index('sample')
+    .assign(
+        n_clones=lambda df_: df_.index.map(
+            lambda s: df_freq[df_freq['sample'] == s].index.nunique()
+        ))
+)
 
 
 
 
-#cumulative clone percentage (clone prevalence), all samples
-results=[]
-for s in df['sample'].unique():
-    df_ = df.query('sample==@s')
-    z = (df_['read_count'] / df_['read_count'].sum())
-    x = (df_['read_count'] / df_['read_count'].sum()).cumsum()
-    origin = df.query('sample==@s')['origin'].unique()[0]
-    results.append(pd.DataFrame({
-       'sample': s, 
-       'relative_freq': z,
-       'cumulative_freq': x
-    }))
-final_df = pd.concat(results)
 
-final_df.to_csv(os.path.join(path_results, 'cumulative_frequencies.csv'))
+#Pivot_table:  
+df_freq_wide = (df_freq.pivot(index='GBC', columns='sample', values='freq'))
+unique_clones = df_freq_wide[df_freq_wide.notnull().sum(axis=1) == 1].index.tolist()  #unique_clones one entry != 0
+common_clones = df_freq_wide[df_freq_wide.drop(columns=['ref_4T1_GBC']).notnull().all(axis=1)].index.tolist()   #common clones all vs all (except ref)
+common_clones_ime = df_freq_wide.loc[
+                df_freq_wide.filter(like='IME_CTRL').notnull().any(axis=1) & df_freq_wide.filter(like='IME_dep').notnull().any(axis=1)    #common clones IME_CTRL vs IME_dep
+].index.tolist()
+common_clones_imt= df_freq_wide.loc[
+                df_freq_wide.filter(like='IMT_CTRL').notnull().any(axis=1) & df_freq_wide.filter(like='IMT_COMBO').notnull().any(axis=1)  #common clones IMT_CTRL vs IMT_COMBO
+].index.tolist()
+
+
+
+
+
+#GBC, n_sample_ime_ctrl, n_sample_ime_dep, n_sample_imt_ctrl, n_sample_imt_combo,n_sample_tot,mean_freq_ime_ctrl
+df_clone=(df_freq_wide.reset_index()
+    .assign(
+    n_sample_ime_ctrl = lambda x: x.filter(like='IME_CTRL').notnull().sum(axis=1),          
+    n_sample_ime_dep = lambda x: x.filter(like='IME_dep').notnull().sum(axis=1),
+    n_sample_imt_ctrl = lambda x: x.filter(like='IMT_CTRL').notnull().sum(axis=1),
+    n_sample_imt_combo = lambda x: x.filter(like='IMT_COMBO').notnull().sum(axis=1),
+    n_sample_tot = lambda x: x.filter(like='IM').notnull().sum(axis=1) + x.filter(like='ref').notnull().sum(axis=1),
+    mean_freq_ime_ctrl = lambda x: x.filter(like='IME_CTRL').apply(lambda row: row.dropna().mean(), axis=1),
+    mean_freq_ime_dep = lambda x: x.filter(like='IME_dep').apply(lambda row: row.dropna().mean(), axis=1)
+
+)[['GBC','n_sample_ime_ctrl','n_sample_ime_dep','n_sample_imt_ctrl','n_sample_imt_combo','n_sample_tot','mean_freq_ime_ctrl','mean_freq_ime_dep']])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
