@@ -3,7 +3,9 @@ import random
 import pickle
 import pandas as pd
 import numpy as np
+from scipy.cluster.hierarchy import leaves_list, linkage
 from plotting_utils._plotting import *
+matplotlib.use('macOSX')
 
 #Path
 path_main = '/Users/ieo7295/Desktop/BC_immuno_reproducibility'
@@ -81,6 +83,35 @@ fig.savefig(os.path.join(path_results, 'bubble_plot.png'), dpi=300)
 
 
 
+#bubble_plot threshold=0.5
+threshold_percentage = 0.50  
+df_freq['is_above_threshold'] = df_freq['freq'] > threshold_percentage
+threshold_counts = df_freq.groupby('sample')['is_above_threshold'].sum().reset_index()
+samples_above_threshold = threshold_counts[threshold_counts['is_above_threshold'] > 0]['sample']
+with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'rb') as f:
+    clones_colors = pickle.load(f)
+df_freq_filtered = df_freq[df_freq['sample'].isin(samples_above_threshold)]
+categories = [
+    'IMT_CTLA4_2', 'IMT_COMBO_5', 'IMT_COMBO_4', 'IMT_COMBO_3', 'IMT_COMBO_2', 'IMT_CTRL_4', 
+    'IMT_CTRL_3', 'IMT_CTRL_2', 'IMT_CTRL_1', 'IME_dep_8', 'IME_dep_7', 'IME_dep_6', 'IME_dep_5', 
+    'IME_dep_4', 'IME_dep_3', 'IME_dep_2', 'IME_dep_1', 'IME_CTRL_8', 'IME_CTRL_7', 'IME_CTRL_6', 
+    'IME_CTRL_5', 'IME_CTRL_4', 'IME_CTRL_3', 'IME_CTRL_2', 'IME_CTRL_1', 'ref_4T1_GBC'
+]
+
+df_freq_filtered['sample'] = pd.Categorical(df_freq_filtered['sample'], categories=categories)
+df_freq_filtered.sort_values(by=['sample'], inplace=True)
+df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000-5) + 5
+df_freq_filtered = df_freq_filtered[df_freq_filtered['sample'] != 'ref_4T1_GBC']
+
+fig, ax = plt.subplots(figsize=(6, 6))
+scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
+format_ax(ax, xlabel='Clones', xticks='')
+fig.tight_layout()
+fig.savefig(os.path.join(path_results, 'filtered_bubble_plot.png'), dpi=300)
+
+
+
+
 
 #sample, Shannon entropy, origin, n_clones
 SH = []
@@ -132,6 +163,11 @@ box(df_sample, x='origin', y='n_clones', ax=ax, with_stats=True,
     order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
 )
 strip(df_sample, x='origin', y='n_clones', ax=ax, order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4'], c='k')
+ax.set_yscale('log', base=2)
+y_min, y_max = ax.get_ylim()
+ticks = [2**i for i in range(int(np.log2(y_min)), int(np.log2(y_max)) + 1)]
+ax.set_yticks(ticks)
+ax.set_yticklabels([str(tick) for tick in ticks])
 format_ax(ax=ax, title='n_clones by condition', ylabel='n_clones', rotx=90, reduce_spines=True)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'n_clones_condition.png'), dpi=300)
@@ -155,12 +191,16 @@ fig.savefig(os.path.join(path_results, f'SH.png'), dpi=300)
 #Pivot_table:  
 df_freq_wide = (df_freq.pivot(index='GBC', columns='sample', values='freq'))
 unique_clones = df_freq_wide[df_freq_wide.notnull().sum(axis=1) == 1].index.tolist()  #unique_clones one entry != 0
-common_clones = df_freq_wide[df_freq_wide.drop(columns=['ref_4T1_GBC']).notnull().all(axis=1)].index.tolist()   #common clones all vs all (except ref)
+common_clones = df_freq_wide.loc[
+    df_freq_wide.drop(columns=['ref_4T1_GBC']).notnull().all(axis=1)
+].index.tolist()   #common clones all vs all (except ref)
 common_clones_ime = df_freq_wide.loc[
-                df_freq_wide.filter(like='IME_CTRL').notnull().any(axis=1) & df_freq_wide.filter(like='IME_dep').notnull().any(axis=1)    #common clones IME_CTRL vs IME_dep
+                df_freq_wide.filter(like='IME_CTRL').notnull().any(axis=1) & 
+                df_freq_wide.filter(like='IME_dep').notnull().any(axis=1)    #common clones IME_CTRL vs IME_dep
 ].index.tolist()
 common_clones_imt= df_freq_wide.loc[
-                df_freq_wide.filter(like='IMT_CTRL').notnull().any(axis=1) & df_freq_wide.filter(like='IMT_COMBO').notnull().any(axis=1)  #common clones IMT_CTRL vs IMT_COMBO
+                df_freq_wide.filter(like='IMT_CTRL').notnull().any(axis=1) & 
+                df_freq_wide.filter(like='IMT_COMBO').notnull().any(axis=1)  #common clones IMT_CTRL vs IMT_COMBO
 ].index.tolist()
 
 
@@ -201,6 +241,8 @@ fig.savefig(os.path.join(path_results, f'common.png'), dpi=300)
 
 
 
+
+#heatmap jaccard INDEX
 
 
 
