@@ -34,7 +34,7 @@ un_dep = dep_cl.difference(ctrl_cl)
 
 
 
-#GBC,sample,origin,freq,cum_freq
+#GBC,sample,read_count,origin,freq,cum_freq
 df_freq=(df.reset_index().rename(columns={'index':'GBC'})  
         .groupby('sample')
         .apply(lambda x: x.assign(
@@ -83,31 +83,44 @@ fig.savefig(os.path.join(path_results, 'bubble_plot.png'), dpi=300)
 
 
 
-#bubble_plot threshold=0.5
-threshold_percentage = 0.50  
-df_freq['is_above_threshold'] = df_freq['freq'] > threshold_percentage
-threshold_counts = df_freq.groupby('sample')['is_above_threshold'].sum().reset_index()
-samples_above_threshold = threshold_counts[threshold_counts['is_above_threshold'] > 0]['sample']
-with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'rb') as f:
-    clones_colors = pickle.load(f)
-df_freq_filtered = df_freq[df_freq['sample'].isin(samples_above_threshold)]
+#bubble plot 20%,50%,70% 
+#n of clones with freq>10% common in 20%,50%,70% of samples of 1 condition
+#clones freq > 10%
+threshold = 0.1
+criteria = [0.2, 0.5, 0.7]
 categories = [
-    'IMT_CTLA4_2', 'IMT_COMBO_5', 'IMT_COMBO_4', 'IMT_COMBO_3', 'IMT_COMBO_2', 'IMT_CTRL_4', 
-    'IMT_CTRL_3', 'IMT_CTRL_2', 'IMT_CTRL_1', 'IME_dep_8', 'IME_dep_7', 'IME_dep_6', 'IME_dep_5', 
-    'IME_dep_4', 'IME_dep_3', 'IME_dep_2', 'IME_dep_1', 'IME_CTRL_8', 'IME_CTRL_7', 'IME_CTRL_6', 
-    'IME_CTRL_5', 'IME_CTRL_4', 'IME_CTRL_3', 'IME_CTRL_2', 'IME_CTRL_1', 'ref_4T1_GBC'
+    'IMT_CTLA4_2','IMT_COMBO_5','IMT_COMBO_4','IMT_COMBO_3','IMT_COMBO_2',
+    'IMT_CTRL_4', 'IMT_CTRL_3', 'IMT_CTRL_2', 'IMT_CTRL_1', 'IME_dep_8', 'IME_dep_7',
+    'IME_dep_6', 'IME_dep_5', 'IME_dep_4', 'IME_dep_3', 'IME_dep_2', 'IME_dep_1',
+    'IME_CTRL_8', 'IME_CTRL_7', 'IME_CTRL_6','IME_CTRL_5', 'IME_CTRL_4', 'IME_CTRL_3',
+    'IME_CTRL_2', 'IME_CTRL_1', 'ref_4T1_GBC'
 ]
 
-df_freq_filtered['sample'] = pd.Categorical(df_freq_filtered['sample'], categories=categories)
-df_freq_filtered.sort_values(by=['sample'], inplace=True)
-df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000-5) + 5
-df_freq_filtered = df_freq_filtered[df_freq_filtered['sample'] != 'ref_4T1_GBC']
+df_freq['above_threshold'] = df_freq['freq'] > threshold
+clone_summary = df_freq[df_freq['above_threshold']].groupby(['GBC', 'origin'])['sample'].nunique().reset_index(name='num_samples_above_threshold')
 
-fig, ax = plt.subplots(figsize=(6, 6))
-scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
-format_ax(ax, xlabel='Clones', xticks='')
-fig.tight_layout()
-fig.savefig(os.path.join(path_results, 'filtered_bubble_plot.png'), dpi=300)
+total_samples = df_freq.groupby('origin')['sample'].nunique()
+clone_summary['percent_samples'] = clone_summary.apply(
+    lambda row: row['num_samples_above_threshold'] / total_samples[row['origin']], axis=1
+)
+selected_clones = {
+    criterion: clone_summary[clone_summary['percent_samples'] >= criterion]['GBC'].unique()
+    for criterion in criteria
+}
+
+df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories)
+df_freq.sort_values(by=['sample'], inplace=True)
+
+for criterion, clones in selected_clones.items():
+    df_freq_filtered = df_freq[df_freq['GBC'].isin(clones)] 
+    df_freq_filtered = df_freq_filtered[df_freq_filtered['sample'] != 'ref_4T1_GBC']
+    df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000 - 5) + 5  
+    fig, ax = plt.subplots(figsize=(6, 6))
+    scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
+    format_ax(ax, xlabel='Clones', xticks='')
+    
+    fig.tight_layout()
+    fig.savefig(os.path.join(path_results, f'bubble_plot_{int(criterion*100)}.png'), dpi=300)
 
 
 
@@ -241,14 +254,34 @@ fig.savefig(os.path.join(path_results, f'common.png'), dpi=300)
 
 
 
-
 #heatmap jaccard INDEX
+order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
+ordered_samples = sorted(
+    [s for c in order for s in common.index if c in s],
+    key=lambda x: (
+        next((order.index(c) for c in order if c in x), len(order)),
+        int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')
+    )
+)
+common_c = common.loc[ordered_samples, ordered_samples]
+set_sizes = np.diag(common_c.values)
+JI = np.zeros_like(common_c.values, dtype=float)
 
+for i, row in common_c.iterrows():
+    for j, val in row.items():
+        union_size = set_sizes[common_c.index.get_loc(i)] + set_sizes[common_c.columns.get_loc(j)] - val
+        JI[common_c.index.get_loc(i), common_c.columns.get_loc(j)] = val / union_size if union_size != 0 else 0
 
+JI_df = pd.DataFrame(JI, index=common_c.index, columns=common_c.columns)
+order_clustering = leaves_list(linkage(JI_df.values))
 
+fig, ax = plt.subplots(figsize=(10, 10))
+ax.imshow(JI_df.values[np.ix_(order_clustering, order_clustering)])
+format_ax(ax=ax,xticks=JI_df.index[order_clustering], yticks=JI_df.index[order_clustering], rotx=90)
 
+for i in range(len(order_clustering)):
+    for j in range(len(order_clustering)):
+        ax.text(j, i, f'{JI_df.iloc[order_clustering[i], order_clustering[j]]:.2f}', ha='center', va='center', color='white')
 
-
-
-
-
+plt.tight_layout()
+plt.savefig(os.path.join(path_results, f'heatmap_Jaccard.png'), dpi= 300)
