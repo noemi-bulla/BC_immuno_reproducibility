@@ -78,8 +78,23 @@ df_freq['area_plot'] = df_freq['freq'] * (3000-5) + 5
 fig, ax = plt.subplots(figsize=(6, 6))
 scatter(df_freq, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
 format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
+ax.text(.3, .23, f'n clones total: {df_freq["GBC"].unique().size}', transform=ax.transAxes)
+s = df_freq.groupby('sample').size()
+ax.text(.3, .20, f'n clones per sample: {round(s.median(),4)} (+-{round(s.std(),4)})', transform=ax.transAxes)
+s = df_freq.query('origin == "IME_CTRL"').groupby('sample')['freq'].median()
+s = s[~s.isna()]
+ax.text(.3, .17, f'Prevalence IME_CTRL: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
+s = df_freq.query('origin == "IME_dep"').groupby('sample')['freq'].median()
+s = s[~s.isna()]
+ax.text(.3, .14, f'Prevalence IME_dep: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
+s = df_freq.query('origin == "IMT_CTRL"').groupby('sample')['freq'].median()
+s = s[~s.isna()]
+ax.text(.3, .11, f'Prevalence IMT_CTRL: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
+s = df_freq.query('origin == "IMT_COMBO"').groupby('sample')['freq'].median()
+s = s[~s.isna()]
+ax.text(.3, .08, f'Prevalence IMT_COMBO: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, 'bubble_plot.png'), dpi=300)
+fig.savefig(os.path.join(path_results, 'bubble_plot_again.png'), dpi=300)
 
 
 
@@ -117,6 +132,7 @@ for criterion, clones in selected_clones.items():
     df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000 - 5) + 5  
     fig, ax = plt.subplots(figsize=(6, 6))
     scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
+    fig.show()
     format_ax(ax, xlabel='Clones', xticks='')
     
     fig.tight_layout()
@@ -183,7 +199,7 @@ ax.set_yticks(ticks)
 ax.set_yticklabels([str(tick) for tick in ticks])
 format_ax(ax=ax, title='n_clones by condition', ylabel='n_clones', rotx=90, reduce_spines=True)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, f'n_clones_condition.png'), dpi=300)
+#fig.savefig(os.path.join(path_results, f'n_clones_condition.png'), dpi=300)
 
 
 
@@ -276,12 +292,8 @@ JI_df = pd.DataFrame(JI, index=common_c.index, columns=common_c.columns)
 order_clustering = leaves_list(linkage(JI_df.values))
 
 fig, ax = plt.subplots(figsize=(10, 10))
-ax.imshow(JI_df.values[np.ix_(order_clustering, order_clustering)])
-format_ax(ax=ax,xticks=JI_df.index[order_clustering], yticks=JI_df.index[order_clustering], rotx=90)
-
-for i in range(len(order_clustering)):
-    for j in range(len(order_clustering)):
-        ax.text(j, i, f'{JI_df.iloc[order_clustering[i], order_clustering[j]]:.2f}', ha='center', va='center', color='white')
-
-plt.tight_layout()
+plot_heatmap(JI_df.values[np.ix_(order_clustering, order_clustering)], palette='mako', ax=ax,
+             x_names=JI_df.index[order_clustering], y_names=JI_df.index[order_clustering], annot=True, 
+             annot_size=8, label='Jaccard Index', shrink=1)
+fig.tight_layout()
 plt.savefig(os.path.join(path_results, f'heatmap_Jaccard.png'), dpi= 300)
