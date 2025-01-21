@@ -94,7 +94,7 @@ s = df_freq.query('origin == "IMT_COMBO"').groupby('sample')['freq'].median()
 s = s[~s.isna()]
 ax.text(.3, .08, f'Prevalence IMT_COMBO: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, 'bubble_plot_again.png'), dpi=300)
+
 
 
 
@@ -199,7 +199,7 @@ ax.set_yticks(ticks)
 ax.set_yticklabels([str(tick) for tick in ticks])
 format_ax(ax=ax, title='n_clones by condition', ylabel='n_clones', rotx=90, reduce_spines=True)
 fig.tight_layout()
-#fig.savefig(os.path.join(path_results, f'n_clones_condition.png'), dpi=300)
+fig.savefig(os.path.join(path_results, f'n_clones_condition.png'), dpi=300)
 
 
 
@@ -236,18 +236,21 @@ common_clones_imt= df_freq_wide.loc[
 
 
 
-#GBC, n_sample_ime_ctrl, n_sample_ime_dep, n_sample_imt_ctrl, n_sample_imt_combo,n_sample_tot,mean_freq_ime_ctrl
+#GBC, n_sample_ref,n_sample_ime_ctrl, n_sample_ime_dep, n_sample_imt_ctrl, n_sample_imt_combo,n_sample_tot,mean_freq_ime_ctrl
 df_clone=(df_freq_wide.reset_index()
     .assign(
+    n_sample_ref = lambda x: x.filter(like='ref_4T1_GBC').notnull().sum(axis=1),
     n_sample_ime_ctrl = lambda x: x.filter(like='IME_CTRL').notnull().sum(axis=1),          
     n_sample_ime_dep = lambda x: x.filter(like='IME_dep').notnull().sum(axis=1),
     n_sample_imt_ctrl = lambda x: x.filter(like='IMT_CTRL').notnull().sum(axis=1),
     n_sample_imt_combo = lambda x: x.filter(like='IMT_COMBO').notnull().sum(axis=1),
-    n_sample_tot = lambda x: x.filter(like='IM').notnull().sum(axis=1) + x.filter(like='ref').notnull().sum(axis=1),
+    n_sample_tot = lambda x: x.filter(like='IM').notnull().sum(axis=1) + x.filter(like='ref_4T1_GBC').notnull().sum(axis=1),
     mean_freq_ime_ctrl = lambda x: x.filter(like='IME_CTRL').apply(lambda row: row.dropna().mean(), axis=1),
-    mean_freq_ime_dep = lambda x: x.filter(like='IME_dep').apply(lambda row: row.dropna().mean(), axis=1)
+    mean_freq_ime_dep = lambda x: x.filter(like='IME_dep').apply(lambda row: row.dropna().mean(), axis=1),
+    mean_freq_imt_ctrl = lambda x: x.filter(like='IMT_CTRL').apply(lambda row: row.dropna().mean(), axis=1),
+    mean_freq_imt_combo = lambda x: x.filter(like='IMT_COMBO').apply(lambda row: row.dropna().mean(), axis=1)
 
-)[['GBC','n_sample_ime_ctrl','n_sample_ime_dep','n_sample_imt_ctrl','n_sample_imt_combo','n_sample_tot','mean_freq_ime_ctrl','mean_freq_ime_dep']])
+)[['GBC','n_sample_ref','n_sample_ime_ctrl','n_sample_ime_dep','n_sample_imt_ctrl','n_sample_imt_combo','n_sample_tot','mean_freq_ime_ctrl','mean_freq_ime_dep','mean_freq_imt_ctrl','mean_freq_imt_combo']])
 
 
 
