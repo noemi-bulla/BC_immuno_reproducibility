@@ -79,20 +79,6 @@ fig, ax = plt.subplots(figsize=(6, 6))
 scatter(df_freq, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
 format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
 ax.text(.3, .23, f'n clones total: {df_freq["GBC"].unique().size}', transform=ax.transAxes)
-s = df_freq.groupby('sample').size()
-ax.text(.3, .20, f'n clones per sample: {round(s.median(),4)} (+-{round(s.std(),4)})', transform=ax.transAxes)
-s = df_freq.query('origin == "IME_CTRL"').groupby('sample')['freq'].median()
-s = s[~s.isna()]
-ax.text(.3, .17, f'Prevalence IME_CTRL: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
-s = df_freq.query('origin == "IME_dep"').groupby('sample')['freq'].median()
-s = s[~s.isna()]
-ax.text(.3, .14, f'Prevalence IME_dep: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
-s = df_freq.query('origin == "IMT_CTRL"').groupby('sample')['freq'].median()
-s = s[~s.isna()]
-ax.text(.3, .11, f'Prevalence IMT_CTRL: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
-s = df_freq.query('origin == "IMT_COMBO"').groupby('sample')['freq'].median()
-s = s[~s.isna()]
-ax.text(.3, .08, f'Prevalence IMT_COMBO: {round(s.median(),4)} (+-{round(s.std(),6)})', transform=ax.transAxes)
 fig.tight_layout()
 
 
