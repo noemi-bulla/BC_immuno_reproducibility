@@ -9,8 +9,8 @@ matplotlib.use('macOSX')
 
 #Path
 path_main = '/Users/ieo7295/Desktop/BC_immuno_reproducibility'
-path_data = os.path.join(path_main, 'data','summary_bulk_070125') 
-path_results = os.path.join(path_main, 'results', 'clonal')
+path_data = os.path.join(path_main, 'data','summary_bulk_240125_nospikeins') 
+path_results = os.path.join(path_main, 'results', 'clonal_240125')
 
 # Read prevalences
 df = pd.read_csv(os.path.join(path_data, 'bulk_GBC_reference.csv'), index_col=0)
@@ -44,7 +44,7 @@ df_freq=(df.reset_index().rename(columns={'index':'GBC'})
     .reset_index(drop=True)
 )
 
-
+df_freq.to_csv(os.path.join(path_results,'rel_freq.csv'))
 #bubble plot
 categories = [
     'IMT_CTLA4_2','IMT_COMBO_5','IMT_COMBO_4','IMT_COMBO_3','IMT_COMBO_2','IMT_CTRL_4', 'IMT_CTRL_3', 'IMT_CTRL_2', 'IMT_CTRL_1', 'IME_dep_8', 'IME_dep_7',
@@ -80,7 +80,7 @@ scatter(df_freq, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.
 format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
 ax.text(.3, .23, f'n clones total: {df_freq["GBC"].unique().size}', transform=ax.transAxes)
 fig.tight_layout()
-
+fig.savefig(os.path.join(path_results,'bubble_plot.png'),dpi=300)
 
 
 
@@ -218,7 +218,7 @@ common_clones_imt= df_freq_wide.loc[
                 df_freq_wide.filter(like='IMT_COMBO').notnull().any(axis=1)  #common clones IMT_CTRL vs IMT_COMBO
 ].index.tolist()
 
-
+len(unique_clones)
 
 
 
@@ -237,7 +237,7 @@ df_clone=(df_freq_wide.reset_index()
     mean_freq_imt_combo = lambda x: x.filter(like='IMT_COMBO').apply(lambda row: row.dropna().mean(), axis=1)
 
 )[['GBC','n_sample_ref','n_sample_ime_ctrl','n_sample_ime_dep','n_sample_imt_ctrl','n_sample_imt_combo','n_sample_tot','mean_freq_ime_ctrl','mean_freq_ime_dep','mean_freq_imt_ctrl','mean_freq_imt_combo']])
-
+df_clone.to_csv(os.path.join(path_results,'clones_statistic.csv'))
 
 
 
@@ -251,8 +251,10 @@ ordered_samples = sorted(
     )
 )
 df_reordered = common.loc[ordered_samples, ordered_samples]
+vmin, vmax= 0, 200
 fig, ax = plt.subplots(figsize=(10,8))
-plot_heatmap(df_reordered, ax=ax, annot=True, title='n common clones', x_names_size=8, y_names_size=8, annot_size=5.5)
+plot_heatmap(df_reordered, ax=ax, annot=True, title='n common clones', x_names_size=8, y_names_size=8, annot_size=5.5, cb=False)
+sns.heatmap(data=df_reordered, ax=ax, robust=True, cmap="mako", vmin=vmin, vmax=vmax, fmt='.2f',cbar_kws={'fraction':0.05, 'aspect':35, 'pad': 0.02})
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'common.png'), dpi=300)
 
@@ -280,9 +282,12 @@ for i, row in common_c.iterrows():
 JI_df = pd.DataFrame(JI, index=common_c.index, columns=common_c.columns)
 order_clustering = leaves_list(linkage(JI_df.values))
 
+vmin, vmax= 0, 0.25
 fig, ax = plt.subplots(figsize=(10, 10))
 plot_heatmap(JI_df.values[np.ix_(order_clustering, order_clustering)], palette='mako', ax=ax,
              x_names=JI_df.index[order_clustering], y_names=JI_df.index[order_clustering], annot=True, 
-             annot_size=8, label='Jaccard Index', shrink=1)
+             annot_size=8, label='Jaccard Index', shrink=1, cb=False)
+sns.heatmap(JI_df.values[np.ix_(order_clustering, order_clustering)], ax=ax, xticklabels=JI_df.index[order_clustering], yticklabels=JI_df.index[order_clustering],
+                        robust=True, cmap="mako", vmin=vmin, vmax=vmax, fmt='.2f',cbar_kws={'fraction':0.05, 'aspect':35, 'pad': 0.02})
 fig.tight_layout()
 plt.savefig(os.path.join(path_results, f'heatmap_Jaccard.png'), dpi= 300)
