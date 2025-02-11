@@ -28,6 +28,15 @@ tests = [ df_m['sample'].str.contains('IME_CTRL'), df_m['sample'].str.contains('
          df_m['sample'].str.contains('IME_RT_'), df_m['sample'].str.contains('IME_RTdep')] 
 df_m['origin'] = np.select(tests, ['IME_CTRL','IME_dep','IME_RT','IME_RTdep'], default='ref')
 
+#df for comparison of IME_dep, IME_RT, IME_RTdep
+selected_samples=['IME_dep_1','IME_dep_2','IME_dep_3','IME_dep_4','IME_dep_5','IME_dep_6','IME_dep_7',
+                  'IME_dep_8','IME_RT_1','IME_RT_1','IME_RT_2','IME_RT_3','IME_RT_4','IME_RT_6',
+                  'IME_RT_7','IME_RT_8','IME_RTdep_1','IME_RTdep_2','IME_RTdep_3','IME_RTdep_4']
+
+tests = [df_m['sample'].str.contains('IME_dep'), 
+         df_m['sample'].str.contains('IME_RT_'), df_m['sample'].str.contains('IME_RTdep')] 
+df_m['origin'] = np.select(tests, ['IME_dep','IME_RT','IME_RTdep'], default='ref')
+df_m=df_m[df_m['sample'].isin(selected_samples)]
 
 #GBC,sample,read_count,origin,freq,cum_freq
 df_freq=(df_m.reset_index().rename(columns={'index':'GBC'})  
