@@ -205,6 +205,33 @@ for criterion, clones in selected_clones.items():
     fig.savefig(os.path.join(path_results, f'bubble_plot_{int(criterion*100)}.png'), dpi=300)
 
 
+#Alternative bubble plot with clones at 90% cumulative freq x sample
+threshold=0.90
+categories = [
+    'IME_CTRL_1','IME_RT_8','IME_RT_7','IME_RT_6','IME_RT_4','IME_RT_3','IME_RT_2','IME_RT_1','IME_RTdep_4','IME_RTdep_3',
+    'IME_RTdep_2','IME_RTdep_1','IME_dep_8','IME_dep_7',
+    'IME_dep_6','IME_dep_5','IME_dep_4','IME_dep_3','IME_dep_2','IME_dep_1',
+    'IME_CTRL_8','IME_CTRL_7','IME_CTRL_6',
+    'IME_CTRL_5','IME_CTRL_4','IME_CTRL_3','IME_CTRL_2','IME_CTRL_1'
+]
+
+df_freq_filtered = df_freq[df_freq['cum_freq'] <= threshold]
+df_freq_filtered['sample'] = pd.Categorical(df_freq_filtered['sample'], categories=categories)
+df_freq_filtered.sort_values(by=['sample'], inplace=True)
+
+# Compute bubble size
+df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000 - 5) + 5  
+
+# Generate Bubble Plot
+fig, ax = plt.subplots(figsize=(15, 6))
+scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
+format_ax(ax, xlabel='Clones', xticks='')
+
+# Save figure
+fig.tight_layout()
+plt.show()
+fig.savefig(os.path.join(path_results, 'bubble_plot_90_cumulative_dep.png'), dpi=300)
+
 #sample, Shannon entropy, origin, n_clones
 SH = []
 for s in df_freq['sample'].unique():

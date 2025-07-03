@@ -1,25 +1,39 @@
 import os
 import random
 import pickle
+import re
 import pandas as pd
 import numpy as np
+import seaborn as sns
+from typing import Dict,Iterable,Any
 from scipy.cluster.hierarchy import leaves_list, linkage
-from plotting_utils._plotting import *
+import plotting_utils as plu 
+import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use('macOSX')
 
 #Path
 path_main = '/Users/ieo7295/Desktop/BC_immuno_reproducibility'
-path_data = os.path.join(path_main, 'data','summary_bulk_240125_nospikeins') 
-path_results = os.path.join(path_main, 'results', 'clonal_240125')
+path_data = os.path.join(path_main, 'data','summary_020725_bulk_met/summary') 
+path_results = os.path.join(path_main, 'results', 'clonal_020725_met')
 
 # Read prevalences
 df = pd.read_csv(os.path.join(path_data, 'bulk_GBC_reference.csv'), index_col=0)
 common = pd.read_csv(os.path.join(path_data, 'common.csv'), index_col=0)
 
 # Reformat
-tests = [ df['sample'].str.contains('IME_CTRL'), df['sample'].str.contains('IME_dep'), 
-         df['sample'].str.contains('IMT_CTRL'), df['sample'].str.contains('IMT_CTLA4'), df['sample'].str.contains('IMT_COMBO')] 
-df['origin'] = np.select(tests, ['IME_CTRL','IME_dep','IMT_CTRL','IMT_CTLA4','IMT_COMBO'], default='ref')
+df['sample'] = df['sample'].apply(lambda s: re.sub(r'^(IME_[A-Za-z]+)_(\d+)_met$', r'\1_met_\2', s))
+common.index = common.index.map(lambda s: re.sub(r'^(IME_[A-Za-z]+)_(\d+)_met$', r'\1_met_\2', s))
+common.columns = common.columns.map(lambda s: re.sub(r'^(IME_[A-Za-z]+)_(\d+)_met$', r'\1_met_\2', s))
+tests = [
+    df['sample'].str.contains(r'^IME_CTRL(_\d+)?$', regex=True),
+    df['sample'].str.contains(r'^IME_dep(_\d+)?$', regex=True),
+    df['sample'].str.contains(r'^IME_NSG(_\d+)?$', regex=True),
+    df['sample'].str.contains(r'^IME_CTRL_met(_\d+)?$', regex=True),
+    df['sample'].str.contains(r'^IME_dep_met(_\d+)?$', regex=True),
+    df['sample'].str.contains(r'^IME_NSG_met(_\d+)?$', regex=True)
+]
+df['origin'] = np.select(tests, ['IME_CTRL','IME_dep','IME_NSG','IME_CTRL_met','IME_dep_met','IME_NSG_met'], default='ref')
 
 #IME_CTRL vs IME_dep common_clones
 df_common= df.groupby('origin')
@@ -31,6 +45,58 @@ un_ctrl = ctrl_cl.difference(dep_cl)
 un_dep = dep_cl.difference(ctrl_cl) 
 
 
+#Bar plot function 
+def bar_new(
+    df: pd.DataFrame, 
+    x: str, 
+    y: str, 
+    by: str = None, 
+    color: str = None,
+    edgecolor: str = 'k',
+    categorical_cmap: str | Dict[str, Any] = 'tab10', 
+    x_order: Iterable[str] = None,
+    by_order: Iterable[str] = None,
+    width: float = 0.8,  
+    linewidth: float = 0.5,
+    alpha: float = 0.8, 
+    ax: matplotlib.axes.Axes = None, 
+) -> matplotlib.axes.Axes:
+    """
+    Basic bar plot.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    if by is None:
+        sns.barplot(
+            data=df, x=x, y=y, ax=ax, 
+            order=x_order, 
+            color=color,
+            alpha=alpha, edgecolor=edgecolor, linewidth=linewidth
+        )
+    else:
+        if by not in df.columns:
+            raise KeyError(f'{by} not in df.columns!')
+        if not pd.api.types.is_categorical_dtype(df[by]) and not pd.api.types.is_string_dtype(df[by]):
+            raise ValueError(f'{by} must be categorical or string!')
+
+        if isinstance(categorical_cmap, str):
+            palette = sns.color_palette(categorical_cmap, df[by].nunique())
+            cmap = dict(zip(df[by].unique(), palette))
+        else:
+            cmap = categorical_cmap
+        
+        assert all(x in cmap for x in df[by].unique())
+
+        sns.barplot(
+            data=df, x=x, y=y, ax=ax,
+            order=x_order,
+            hue=by, hue_order=by_order, palette=cmap,
+            alpha=alpha, edgecolor=edgecolor, linewidth=linewidth
+        )
+        ax.get_legend().remove()
+
+    return ax
 
 
 
@@ -45,14 +111,39 @@ df_freq=(df.reset_index().rename(columns={'index':'GBC'})
 )
 
 df_freq.to_csv(os.path.join(path_results,'rel_freq.csv'))
-#bubble plot
-categories = [
-    'IMT_CTLA4_2','IMT_COMBO_5','IMT_COMBO_4','IMT_COMBO_3','IMT_COMBO_2','IMT_CTRL_4', 'IMT_CTRL_3', 'IMT_CTRL_2', 'IMT_CTRL_1', 'IME_dep_8', 'IME_dep_7',
-    'IME_dep_6', 'IME_dep_5', 'IME_dep_4', 'IME_dep_3', 'IME_dep_2', 'IME_dep_1',
-    'IME_CTRL_8', 'IME_CTRL_7', 'IME_CTRL_6',
-    'IME_CTRL_5', 'IME_CTRL_4', 'IME_CTRL_3', 'IME_CTRL_2', 'IME_CTRL_1', 'ref_4T1_GBC'
+
+categories= [
+    'IME_CTRL_9', 'IME_CTRL_10', 'IME_CTRL_11', 'IME_CTRL_12', 
+    'IME_CTRL_13', 'IME_CTRL_14', 'IME_CTRL_15', 'IME_CTRL_16',
+    'IME_dep_9', 'IME_dep_10', 'IME_dep_11', 'IME_dep_12', 
+    'IME_dep_13', 'IME_dep_14', 'IME_dep_15', 'IME_dep_16',
+    'IME_NSG_1', 'IME_NSG_2', 'IME_NSG_3', 'IME_NSG_4',
+    'IME_NSG_5', 'IME_NSG_6', 'IME_NSG_7', 'IME_NSG_8',
+    'IME_CTRL_met_9', 'IME_CTRL_met_10', 'IME_CTRL_met_11', 'IME_CTRL_met_12',
+    'IME_CTRL_met_13', 'IME_CTRL_met_14', 'IME_CTRL_met_15', 'IME_CTRL_met_16',
+    'IME_dep_met_9', 'IME_dep_met_10', 'IME_dep_met_11', 'IME_dep_met_14',
+    'IME_dep_met_15', 'IME_dep_met_16','IME_NSG_met_1', 'IME_NSG_met_2',
+    'IME_NSG_met_3', 'IME_NSG_met_4','IME_NSG_met_5', 'IME_NSG_met_6', 'IME_NSG_met_7', 'IME_NSG_met_8'
 ]
-df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories)
+
+categories_bubble= [
+    'IME_CTRL_9', 'IME_CTRL_10', 'IME_CTRL_11', 'IME_CTRL_12', 
+    'IME_CTRL_13', 'IME_CTRL_14', 'IME_CTRL_15', 'IME_CTRL_16',
+    'IME_dep_9', 'IME_dep_10', 'IME_dep_11', 'IME_dep_12', 
+    'IME_dep_13', 'IME_dep_14', 'IME_dep_15', 'IME_dep_16',
+    'IME_NSG_1', 'IME_NSG_2', 'IME_NSG_3', 'IME_NSG_4',
+    'IME_NSG_5', 'IME_NSG_6', 'IME_NSG_7', 'IME_NSG_8',
+    'IME_CTRL_met_9', 'IME_CTRL_met_10', 'IME_CTRL_met_11', 'IME_CTRL_met_12',
+    'IME_CTRL_met_13', 'IME_CTRL_met_14', 'IME_CTRL_met_15', 'IME_CTRL_met_16',
+    'IME_dep_met_9', 'IME_dep_met_10', 'IME_dep_met_11', 'IME_dep_met_14',
+    'IME_dep_met_15', 'IME_dep_met_16','IME_NSG_met_1', 'IME_NSG_met_2',
+    'IME_NSG_met_3', 'IME_NSG_met_4','IME_NSG_met_5', 'IME_NSG_met_6', 'IME_NSG_met_7', 'IME_NSG_met_8'
+][::-1]
+
+
+#bubble plot
+
+df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories_bubble)
 df_freq.sort_values(by=['sample'], inplace=True)
 #Random colors for clones
 # clones = df_freq['GBC'].unique()
@@ -74,28 +165,31 @@ with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'rb') as f:
     clones_colors = pickle.load(f)
 
 df_freq['area_plot'] = df_freq['freq'] * (3000-5) + 5
+# order=['IME_NSG_met','IME_dep_met','IME_CTRL_met','IME_NSG','IME_dep','IME_CTRL']
+# unique_samples = df_freq['sample'].unique()
 
-fig, ax = plt.subplots(figsize=(6, 6))
-scatter(df_freq, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
-format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
-ax.text(.3, .23, f'n clones total: {df_freq["GBC"].unique().size}', transform=ax.transAxes)
+# sorted_samples = sorted(
+#     unique_samples,
+#     key=lambda x: (
+#         next((order.index(c) for c in order if c in x), len(order)),
+#         int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')
+#     )
+# )
+# df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=sorted_samples, ordered=True)
+# df_freq_sorted = df_freq.sort_values('sample').reset_index(drop=True)
+
+fig, ax = plt.subplots(figsize=(8.5, 8.5))
+plu.scatter(df_freq, 'GBC', 'sample', by='GBC', color=clones_colors, size='area_plot',alpha=0.5, ax=ax)
+plu.format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
+#ax.text(.3, .23, f'n clones total: {df_freq_sorted["GBC"].unique().size}', transform=ax.transAxes)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results,'bubble_plot.png'),dpi=300)
-
-
 
 #bubble plot 20%,50%,70% 
 #n of clones with freq>10% common in 20%,50%,70% of samples of 1 condition
 #clones freq > 10%
-threshold = 0.1
+threshold = 0.05
 criteria = [0.2, 0.5, 0.7]
-categories = [
-    'IMT_CTLA4_2','IMT_COMBO_5','IMT_COMBO_4','IMT_COMBO_3','IMT_COMBO_2',
-    'IMT_CTRL_4', 'IMT_CTRL_3', 'IMT_CTRL_2', 'IMT_CTRL_1', 'IME_dep_8', 'IME_dep_7',
-    'IME_dep_6', 'IME_dep_5', 'IME_dep_4', 'IME_dep_3', 'IME_dep_2', 'IME_dep_1',
-    'IME_CTRL_8', 'IME_CTRL_7', 'IME_CTRL_6','IME_CTRL_5', 'IME_CTRL_4', 'IME_CTRL_3',
-    'IME_CTRL_2', 'IME_CTRL_1', 'ref_4T1_GBC'
-]
 
 df_freq['above_threshold'] = df_freq['freq'] > threshold
 clone_summary = df_freq[df_freq['above_threshold']].groupby(['GBC', 'origin'])['sample'].nunique().reset_index(name='num_samples_above_threshold')
@@ -109,22 +203,63 @@ selected_clones = {
     for criterion in criteria
 }
 
-df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories)
-df_freq.sort_values(by=['sample'], inplace=True)
-
 for criterion, clones in selected_clones.items():
     df_freq_filtered = df_freq[df_freq['GBC'].isin(clones)] 
-    df_freq_filtered = df_freq_filtered[df_freq_filtered['sample'] != 'ref_4T1_GBC']
+    #df_freq_filtered = df_freq_filtered[df_freq_filtered['sample'] != 'ref_4T1_GBC']
     df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000 - 5) + 5  
-    fig, ax = plt.subplots(figsize=(6, 6))
-    scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', c=clones_colors, s='area_plot', a=0.5, ax=ax)
-    fig.show()
-    format_ax(ax, xlabel='Clones', xticks='')
-    
+    order=['IME_NSG_met','IME_dep_met','IME_CTRL_met','IME_NSG','IME_dep','IME_CTRL']
+    unique_samples = df_freq_filtered['sample'].unique()
+
+    sorted_samples = sorted(
+        unique_samples,
+        key=lambda x: (
+        next((order.index(c) for c in order if c in x), len(order)),
+        int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')
+        )
+    )
+    df_freq_filtered['sample'] = pd.Categorical(df_freq_filtered['sample'], categories=sorted_samples, ordered=True)
+    df_freq_sorted = df_freq_filtered.sort_values('sample').reset_index(drop=True)
+
+    fig, ax = plt.subplots(figsize=(8.5, 8.5))
+    plu.scatter(df_freq_sorted, 'GBC', 'sample', by='GBC', color=clones_colors, size='area_plot', alpha=0.5, ax=ax)
+    plu.format_ax(ax, xlabel='Clones', xticks='')
     fig.tight_layout()
     fig.savefig(os.path.join(path_results, f'bubble_plot_{int(criterion*100)}.png'), dpi=300)
 
+#Bubble Plot of clones freq > 10%
+threshold = 0.60
+df_freq_filtered = df_freq[df_freq['cum_freq'] >= threshold]
+df_freq_filtered['sample'] = pd.Categorical(df_freq_filtered['sample'], categories=categories_bubble)
+df_freq_filtered.sort_values(by=['sample'], inplace=True)
 
+# Compute bubble size
+df_freq_filtered['area_plot'] = df_freq_filtered['freq'] * (3000 - 5) + 5  
+
+# Generate Bubble Plot
+fig, ax = plt.subplots(figsize=(15, 6))
+plu.scatter(df_freq_filtered, 'GBC', 'sample', by='GBC', color=clones_colors, size='area_plot', alpha=0.5, ax=ax)
+plu.format_ax(ax, xlabel='Clones', xticks='')
+
+# Save figure
+fig.tight_layout()
+plt.show()
+fig.savefig(os.path.join(path_results, 'bubble_plot_90_cumulative_dep.png'), dpi=300)
+
+
+# Cumulative clone percentage, all samples
+colors = plu.create_palette(df, 'origin', plu.ten_godisnot)
+
+fig, ax = plt.subplots(figsize=(4.5,4.5))
+for s in df['sample'].unique():
+    df_ = df.query('sample==@s')
+    x = (df_['read_count'] / df_['read_count'].sum()).cumsum()
+    origin = df.query('sample==@s')['origin'].unique()[0]
+    ax.plot(range(len(x)), x, c=colors[origin], linewidth=2.5)
+
+ax.set(title='Clone prevalences', xlabel='Ranked clones', ylabel='Cumulative frequence')
+plu.add_legend(ax=ax, colors=colors, bbox_to_anchor=(1,0), loc='lower right', ticks_size=8, label_size=10, artists_size=8)
+fig.tight_layout()
+fig.savefig(os.path.join(path_results, f'cum_percentages.png'), dpi=300)
 
 
 
@@ -149,54 +284,55 @@ df_sample = (
         ))
 )
 
-
-
 #bar plot n_clones by sample 
-order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
-sorted_samples = sorted(
-    [s for c in order for s in df_sample.index if c in s],
-    key=lambda x: (
-        next((order.index(c) for c in order if c in x), len(order)), 
-        int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')  
-    )
-)
+order=['IME_CTRL','IME_dep','IME_NSG','IME_CTRL_met','IME_dep_met','IME_NSG_met']
+# sorted_samples = sorted(
+#     [s for c in order for s in df_sample.index if c in s],
+#     key=lambda x: (
+#         next((order.index(c) for c in order if c in x), len(order)), 
+#         int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')  
+#     )
+# )
 
-df_sample_sorted = df_sample.loc[sorted_samples]
+df_sample_sorted = df_sample.loc[categories]
+df_sample_sorted=df_sample_sorted.reset_index()
+
 fig, ax = plt.subplots(figsize=(10,4.5))
-bar(df_sample_sorted, 'n_clones', 'sample', s=.70, c='k', a=.7, ax=ax)
-format_ax(ax=ax, title='n clones by sample', ylabel='n_clones', xticks=df_sample_sorted.index, rotx=90)
+bar_new(df_sample_sorted, y= 'n_clones', x='sample', color='k', x_order=categories,alpha=.7, ax=ax)
+
+for i, row in df_sample_sorted.iterrows():
+    ax.text(i, row['n_clones'], str(row['n_clones']), ha='center', va='bottom', fontsize=8)
+
+plu.format_ax(ax=ax, title='n clones by sample', ylabel='n_clones', xticks=df_sample_sorted['sample'], rotx=90)
 ax.spines[['left', 'top', 'right']].set_visible(False)
+ax.invert_yaxis() 
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'n_clones.png'), dpi=500)
 
 
-
 #box,strip n_clones by condition
-fig, ax = plt.subplots(figsize=(4,4))
-box(df_sample, x='origin', y='n_clones', ax=ax, with_stats=True, 
-    pairs=[['IME_CTRL', 'IME_dep'], ['IMT_CTRL', 'IMT_COMBO'], ['IMT_COMBO', 'IMT_CTLA4']], 
-    order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
+fig, ax = plt.subplots(figsize=(8,6))
+plu.box(df_sample_sorted, x='origin', y='n_clones', ax=ax, add_stats=True,
+    pairs=[['IME_CTRL', 'IME_CTRL_met'], ['IME_dep', 'IME_dep_met'], ['IME_NSG', 'IME_NSG_met']]
 )
-strip(df_sample, x='origin', y='n_clones', ax=ax, order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4'], c='k')
-ax.set_yscale('log', base=2)
-y_min, y_max = ax.get_ylim()
-ticks = [2**i for i in range(int(np.log2(y_min)), int(np.log2(y_max)) + 1)]
-ax.set_yticks(ticks)
-ax.set_yticklabels([str(tick) for tick in ticks])
-format_ax(ax=ax, title='n_clones by condition', ylabel='n_clones', rotx=90, reduce_spines=True)
+plu.strip(df_sample_sorted, x='origin', y='n_clones', ax=ax,color='k')
+#ax.set_yscale('log', base=2)
+#y_min, y_max = ax.get_ylim()
+#ticks = [2**i for i in range(int(np.log2(y_min)), int(np.log2(y_max)) + 1)]
+#ax.set_yticks(ticks)
+#ax.set_yticklabels([str(tick) for tick in ticks])
+plu.format_ax(ax=ax, title='n_clones by condition', ylabel='n_clones', rotx=90, reduced_spines=True)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'n_clones_condition.png'), dpi=300)
 
 
-
 #box,strip SH by condition
-fig, ax = plt.subplots(figsize=(4,4))
-box(df_sample, x='origin', y='SH', ax=ax, with_stats=True, 
-    pairs=[['IME_CTRL', 'IME_dep'], ['IMT_CTRL', 'IMT_COMBO'], ['IMT_COMBO', 'IMT_CTLA4']], 
-    order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
+fig, ax = plt.subplots(figsize=(8,6))
+plu.box(df_sample_sorted, x='origin', y='SH', ax=ax, add_stats=True, 
+    pairs=[['IME_CTRL', 'IME_CTRL_met'], ['IME_dep', 'IME_dep_met'], ['IME_NSG', 'IME_NSG_met']]
 )
-strip(df_sample, x='origin', y='SH', ax=ax, order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4'], c='k')
-format_ax(ax=ax, title='Shannon Entropy samples', ylabel='SH', rotx=90, reduce_spines=True)
+plu.strip(df_sample_sorted, x='origin', y='SH', ax=ax, color='k') #order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
+plu.format_ax(ax=ax, title='Shannon Entropy samples', ylabel='SH', rotx=90, reduced_spines=True)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'SH.png'), dpi=300)
 
@@ -242,32 +378,35 @@ df_clone.to_csv(os.path.join(path_results,'clones_statistic.csv'))
 
 
 #Heatmap common_clones
-order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
-ordered_samples = sorted(
-    [s for c in order for s in common.index if c in s],
-    key=lambda x: (
-        next((order.index(c) for c in order if c in x), len(order)),
-        int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')
-    )
-)
-df_reordered = common.loc[ordered_samples, ordered_samples]
-vmin, vmax= 0, 200
-fig, ax = plt.subplots(figsize=(10,8))
-plot_heatmap(df_reordered, ax=ax, annot=True, title='n common clones', x_names_size=8, y_names_size=8, annot_size=5.5, cb=False)
-sns.heatmap(data=df_reordered, ax=ax, robust=True, cmap="mako", vmin=vmin, vmax=vmax, fmt='.2f',cbar_kws={'fraction':0.05, 'aspect':35, 'pad': 0.02})
+# order=['IME_CTRL','IME_dep','IME_NSG','IME_CTRL_met','IME_dep_met','IME_NSG_met'] #'IME_CTRL_met','IME_dep_met','IME_NSG_met'
+# prefix_pattern = re.compile(r'^(IME_CTRL|IME_dep|IME_NSG|IME_CTRL_met|IME_dep_met|IME_NSG_met)') #IME_CTRL_met|IME_dep_met|IME_NSG_met
+
+# ordered_samples = sorted(
+#     {s for s in common.index if prefix_pattern.match(s)},
+#     key=lambda x: (
+#         order.index(prefix_pattern.match(x).group(1)),
+#         int(re.search(r'_(\d+)$', x).group(1)) if re.search(r'_(\d+)$', x) else float('inf') 
+#     )
+# )
+
+
+df_reordered = common.reindex(index=categories, columns=categories)
+fig, ax = plt.subplots(figsize=(16,16))
+vmin, vmax= 0, 300
+plu.plot_heatmap(df_reordered, ax=ax, annot=True, title='n common clones', fmt='.1f',x_names_size=8, y_names_size=8, annot_size=5.5, cb=False)
+sns.heatmap(data=df_reordered, ax=ax, robust=True, cmap="mako", vmin=vmin, vmax=vmax, fmt='.1f',cbar_kws={'fraction':0.05, 'aspect':35, 'pad': 0.02})
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'common.png'), dpi=300)
 
-
-
-
 #heatmap jaccard INDEX
-order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
+order=['IME_CTRL','IME_dep','IME_NSG']
+prefix_pattern = re.compile(r'^(IME_CTRL|IME_dep|IME_NSG)') #IME_CTRL_met|IME_dep_met|IME_NSG_met
+
 ordered_samples = sorted(
-    [s for c in order for s in common.index if c in s],
+    {s for s in common.index if prefix_pattern.match(s)},
     key=lambda x: (
-        next((order.index(c) for c in order if c in x), len(order)),
-        int(x.split('_')[-1]) if x.split('_')[-1].isdigit() else float('inf')
+        order.index(prefix_pattern.match(x).group(1)),
+        int(re.search(r'_(\d+)$', x).group(1)) if re.search(r'_(\d+)$', x) else float('inf') 
     )
 )
 common_c = common.loc[ordered_samples, ordered_samples]
@@ -282,12 +421,12 @@ for i, row in common_c.iterrows():
 JI_df = pd.DataFrame(JI, index=common_c.index, columns=common_c.columns)
 order_clustering = leaves_list(linkage(JI_df.values))
 
-vmin, vmax= 0, 0.25
-fig, ax = plt.subplots(figsize=(10, 10))
-plot_heatmap(JI_df.values[np.ix_(order_clustering, order_clustering)], palette='mako', ax=ax,
+vmin, vmax= 0, 0.45
+fig, ax = plt.subplots(figsize=(16, 16))
+plu.plot_heatmap(JI_df.iloc[order_clustering, order_clustering], palette='mako', ax=ax,   #JI_df.values[np.ix_(order_clustering, order_clustering)]
              x_names=JI_df.index[order_clustering], y_names=JI_df.index[order_clustering], annot=True, 
-             annot_size=8, label='Jaccard Index', shrink=1, cb=False)
-sns.heatmap(JI_df.values[np.ix_(order_clustering, order_clustering)], ax=ax, xticklabels=JI_df.index[order_clustering], yticklabels=JI_df.index[order_clustering],
+             annot_size=8, label='Jaccard Index', fmt='.2f',shrink=1, cb=False)
+sns.heatmap(JI_df.iloc[order_clustering, order_clustering], ax=ax, xticklabels=JI_df.index[order_clustering], yticklabels=JI_df.index[order_clustering],
                         robust=True, cmap="mako", vmin=vmin, vmax=vmax, fmt='.2f',cbar_kws={'fraction':0.05, 'aspect':35, 'pad': 0.02})
 fig.tight_layout()
 plt.savefig(os.path.join(path_results, f'heatmap_Jaccard.png'), dpi= 300)
