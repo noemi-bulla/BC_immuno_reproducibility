@@ -8,14 +8,16 @@ import seaborn as sns
 from typing import Dict,Iterable,Any
 from scipy.cluster.hierarchy import leaves_list, linkage
 import plotting_utils as plu 
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.pyplot as plt
+from circlify import circlify, Circle
 import matplotlib
 matplotlib.use('macOSX')
 
 #Path
 path_main = '/Users/ieo7295/Desktop/BC_immuno_reproducibility'
-path_data = os.path.join(path_main, 'data','summary_020725_bulk_met/summary') 
-path_results = os.path.join(path_main, 'results', 'clonal_020725_met')
+path_data = os.path.join(path_main, 'data','last_test_met/summary') 
+path_results = os.path.join(path_main, 'results', 'last_test_met')
 
 # Read prevalences
 df = pd.read_csv(os.path.join(path_data, 'bulk_GBC_reference.csv'), index_col=0)
@@ -98,6 +100,60 @@ def bar_new(
 
     return ax
 
+#circle_plot_function 
+def packed_circle_plot(
+    df, covariate=None, ax=None, color='b', cmap=None, alpha=.5, linewidth=1.2,
+    t_cov=.01, annotate=False, fontsize=6
+    ):
+    """
+    Circle plot. Packed.
+    """
+    df = df.sort_values(covariate, ascending=False)
+    circles = circlify(
+        df[covariate].to_list(),
+        show_enclosure=True, 
+        target_enclosure=Circle(x=0, y=0, r=1)
+    )
+    
+    lim = max(
+        max(
+            abs(c.x) + c.r,
+            abs(c.y) + c.r,
+        )
+        for c in circles
+    )
+    ax.set_xlim(-lim, lim)
+    ax.set_ylim(-lim, lim)
+    
+    if isinstance(color, str) and not color in df.columns:
+        colors = { k : color for k in df.index }
+    elif isinstance(color, str) and color in df.columns:
+        colors = create_palette(df, covariate, cmap)
+    else:
+        assert isinstance(color, dict)
+        colors = color
+        print('Try to use custom colors...')
+
+    for name, circle in zip(df.index[::-1], circles): # Don't know why, but it reverses...
+        x, y, r = circle
+        ax.add_patch(
+            plt.Circle((x, y), r*0.95, alpha=alpha, linewidth=linewidth, 
+                fill=True, edgecolor=colors[name], facecolor=colors[name])
+        )
+
+        if annotate:
+            cov = df.loc[name, covariate]
+            if cov > t_cov:
+                n = name if len(name)<=5 else name[:5]
+                ax.annotate(
+                    f'{n}: {df.loc[name, covariate]:.2f}', 
+                    (x,y), 
+                    va='center', ha='center', fontsize=fontsize
+                )
+
+    ax.axis('off')
+    
+    return ax
 
 
 #GBC,sample,read_count,origin,freq,cum_freq
@@ -139,6 +195,66 @@ categories_bubble= [
     'IME_dep_met_15', 'IME_dep_met_16','IME_NSG_met_1', 'IME_NSG_met_2',
     'IME_NSG_met_3', 'IME_NSG_met_4','IME_NSG_met_5', 'IME_NSG_met_6', 'IME_NSG_met_7', 'IME_NSG_met_8'
 ][::-1]
+
+
+#packed circle plot prevalence
+
+# Colors
+with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'rb') as f:
+    clones_colors = pickle.load(f)
+
+origin_pairs = [
+    ('IME_CTRL', 'IME_CTRL_met'),
+    ('IME_dep','IME_dep_met'),
+    ('IME_NSG', 'IME_NSG_met'),
+]
+
+# Fig 
+fig = plt.figure(figsize=(10, 5 * len(origin_pairs)))
+
+for i, (pt_origin, met_origin) in enumerate(origin_pairs):
+
+    # Filter each side
+    df_pt = df_freq.query('origin == @pt_origin and freq > 0.01').set_index('GBC')
+    df_met = df_freq.query('origin == @met_origin and freq > 0.01').set_index('GBC')
+
+    # Intersect GBCs
+    shared_gbcs = df_pt.index.intersection(df_met.index)
+    df_pt_shared = df_pt.loc[shared_gbcs]
+    df_met_shared = df_met.loc[shared_gbcs]
+
+    df_pt_agg = df_pt_shared.groupby('GBC')['freq'].mean().to_frame()
+    df_met_agg = df_met_shared.groupby('GBC')['freq'].mean().to_frame()
+
+    # PT panel
+    ax = fig.add_subplot(len(origin_pairs), 2, i*2+1)
+    axins1 = inset_axes(ax, width="95%", height="95%", loc='center')
+    print(f'{pt_origin} (shared, aggregated): {df_pt_agg.shape[0]} clones')
+    packed_circle_plot(
+        df_pt_agg, covariate='freq', ax=axins1, color=clones_colors, annotate=True
+    )
+    ax.set(title=f'{pt_origin}')
+    ax.axis('off')
+
+    # Met panel
+    ax2 = fig.add_subplot(len(origin_pairs), 2, i*2+2)
+    axins2 = inset_axes(ax2, width="95%", height="95%", loc='center')
+    print(f'{met_origin} (shared, aggregated): {df_met_agg.shape[0]} clones')
+    packed_circle_plot(
+        df_met_agg, covariate='freq', ax=axins2, color=clones_colors, cmap='Reds', annotate=True
+    )
+    ax2.set(title=f'{met_origin}')
+    ax2.axis('off')
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(path_results, 'paired_circle_packed.png'), dpi=300)
+
+
+
+
+
+
+
 
 
 #bubble plot
@@ -305,7 +421,6 @@ for i, row in df_sample_sorted.iterrows():
 
 plu.format_ax(ax=ax, title='n clones by sample', ylabel='n_clones', xticks=df_sample_sorted['sample'], rotx=90)
 ax.spines[['left', 'top', 'right']].set_visible(False)
-ax.invert_yaxis() 
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'n_clones.png'), dpi=500)
 
@@ -315,7 +430,7 @@ fig, ax = plt.subplots(figsize=(8,6))
 plu.box(df_sample_sorted, x='origin', y='n_clones', ax=ax, add_stats=True,
     pairs=[['IME_CTRL', 'IME_CTRL_met'], ['IME_dep', 'IME_dep_met'], ['IME_NSG', 'IME_NSG_met']]
 )
-plu.strip(df_sample_sorted, x='origin', y='n_clones', ax=ax,color='k')
+plu.strip(df_sample_sorted, x='origin', y='n_clones', ax=ax, color='k')
 #ax.set_yscale('log', base=2)
 #y_min, y_max = ax.get_ylim()
 #ticks = [2**i for i in range(int(np.log2(y_min)), int(np.log2(y_max)) + 1)]
@@ -389,7 +504,7 @@ df_clone.to_csv(os.path.join(path_results,'clones_statistic.csv'))
 #     )
 # )
 
-
+#Common clones
 df_reordered = common.reindex(index=categories, columns=categories)
 fig, ax = plt.subplots(figsize=(16,16))
 vmin, vmax= 0, 300
