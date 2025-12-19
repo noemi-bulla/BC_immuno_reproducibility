@@ -173,4 +173,5 @@ cython_debug/
 # mine
 data/ 
 results/
+scratch/
 .DS_Store
