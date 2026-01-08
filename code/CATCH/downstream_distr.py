@@ -9,18 +9,17 @@ import random
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 #paths
-path_file = "/Users/ieo7295/Desktop/ilaCatch/results/barcode_collation"
-path_results = "/Users/ieo7295/Desktop/ilaCatch/results"
-path_data = "/Users/ieo7295/Desktop/ilaCatch/results"  # Assuming data files will be saved here
+path_file = "/Users/ieo7295/Desktop/BC_immuno_reproducibility/data/catch_191225/barcode_collation"
+path_results = "/Users/ieo7295/Desktop/BC_immuno_reproducibility/results/catch_191225"
 
-#Apply nf-lenti filtering for min_n_reads = 1000 
+
 
 df = pd.read_csv(os.path.join(path_file, "CaTCHseq_collation.txt"), sep="\t")
 
 # Transform from wide to long format
 df_long = pd.melt(df, 
                   id_vars=['Barcode', 'bc_id'], 
-                  value_vars=['CaTCH_1', 'CaTCH_2', 'CaTCH_3'],
+                  value_vars=['CaTCH_A_1mln', 'CaTCH_B_1mln', 'CaTCH_C_1mln','CaTCH_10k','CaTCH_15k','CaTCH_20k'],
                   var_name='sample', 
                   value_name='read_count')
 
@@ -31,8 +30,8 @@ df_long = df_long.dropna(subset=['read_count'])
 df_long = df_long.rename(columns={'Barcode': 'GBC'})
 
 #apply filtering
-min_n_reads = 1000
-df_long = df_long[df_long['read_count'] >= min_n_reads]
+min_n_reads = 60
+df_long = df_long[df_long['read_count'] > min_n_reads]
 
 # Calculate frequencies
 df_freq = (df_long.groupby('sample')
@@ -44,13 +43,14 @@ df_freq = (df_long.groupby('sample')
 )
 
 # Add origin column based on sample names (simplified for CaTCH data)
-df_freq['origin'] = df_freq['sample']  # For CaTCH data, sample and origin are the same
+df_freq['origin'] = df_freq['sample'] 
 
 df_freq.to_csv(os.path.join(path_results,'rel_freq.csv'))
 print("Available samples:", df_freq['sample'].unique())
 
 # Updated categories for CaTCH samples
-categories = ['CaTCH_1', 'CaTCH_2', 'CaTCH_3']
+categories = ['CaTCH_10k', 'CaTCH_15k', 'CaTCH_20k', 'CaTCH_A_1mln', 'CaTCH_B_1mln',
+ 'CaTCH_C_1mln']
 categories_bubble = categories[::-1]
 
 
@@ -76,7 +76,8 @@ df_sample = (
 )
 
 #bar plot n_clones by sample 
-order=['CaTCH_1','CaTCH_2','CaTCH_3']
+order=['CaTCH_10k', 'CaTCH_15k', 'CaTCH_20k', 'CaTCH_A_1mln', 'CaTCH_B_1mln',
+ 'CaTCH_C_1mln']
 # sorted_samples = sorted(
 #     [s for c in order for s in df_sample.index if c in s],
 #     key=lambda x: (
@@ -87,6 +88,7 @@ order=['CaTCH_1','CaTCH_2','CaTCH_3']
 
 df_sample_sorted = df_sample.loc[categories]
 df_sample_sorted=df_sample_sorted.reset_index()
+df_sample_sorted.to_csv(os.path.join(path_results,'sample_summary.csv'), index=False)
 
 fig, ax = plt.subplots(figsize=(10.5, 4.5))
 plu.bar(
@@ -94,7 +96,7 @@ plu.bar(
     x='sample',
     y='n_barcodes',
     color='k',
-    categorical_cmap=None,   # this is REQUIRED
+    categorical_cmap=None,   
     x_order=order,
     alpha=0.7,
     ax=ax
@@ -135,9 +137,7 @@ plu.add_legend(ax=ax, colors=colors, bbox_to_anchor=(1,0), loc='lower right', ti
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'cum_percentages_filtered.png'), dpi=300)
 
-
 #bubble plot filtered
-
 df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories_bubble)
 df_freq.sort_values(by=['sample'], inplace=True)
 #Random colors for clones
@@ -153,10 +153,10 @@ df_freq.sort_values(by=['sample'], inplace=True)
 #         )
 #     )
 # }
-# with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'wb') as f:
+# with open(os.path.join(path_file, 'clones_colors_sc.pickle'), 'wb') as f:
 #     pickle.dump(clones_colors, f)
 
-with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'rb') as f:
+with open(os.path.join(path_file, 'clones_colors_sc.pickle'), 'rb') as f:
     clones_colors = pickle.load(f)
 
 df_freq['area_plot'] = df_freq['freq'] * (3000-5) + 5
@@ -179,3 +179,36 @@ plu.format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
 #ax.text(.3, .23, f'n clones total: {df_freq_sorted["GBC"].unique().size}', transform=ax.transAxes)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results,'bubble_plot.png'),dpi=300)
+
+#
+freq_inputs = (
+    df_freq[df_freq['sample'].isin(['CaTCH_10k','CaTCH_15k','CaTCH_20k'])]
+    .pivot_table(index='GBC', columns='sample', values='freq', fill_value=0)
+    .reset_index()
+)
+
+freq_inputs.to_csv(
+    os.path.join(path_results, 'barcode_freq_10k_15k_20k.csv'),
+    index=False
+)
+
+# Get top 10 barcodes for each sample
+top_10k = freq_inputs.nlargest(10, 'CaTCH_10k')['GBC']
+top_15k = freq_inputs.nlargest(10, 'CaTCH_15k')['GBC']
+top_20k = freq_inputs.nlargest(10, 'CaTCH_20k')['GBC']
+
+# Combine and get unique barcodes
+top_barcodes = pd.unique(pd.concat([top_10k, top_15k, top_20k]))
+
+# Subset the dataframe
+top = freq_inputs[freq_inputs['GBC'].isin(top_barcodes)].set_index('GBC')
+
+# Plot
+plt.figure(figsize=(12, 8))
+sns.heatmap(
+    top[['CaTCH_10k','CaTCH_15k','CaTCH_20k']],
+    cmap='viridis'
+)
+plt.subplots_adjust(left=0.6)
+plt.title('Top barcode frequencies in CaTCH 10k, 15k, and 20k samples')
+plt.savefig(os.path.join(path_results, 'top_barcode_frequencies.png'), dpi=300)
