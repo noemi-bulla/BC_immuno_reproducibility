@@ -12,28 +12,22 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 path_file = "/Users/ieo7295/Desktop/BC_immuno_reproducibility/data/catch_191225/barcode_collation"
 path_results = "/Users/ieo7295/Desktop/BC_immuno_reproducibility/results/catch_191225"
 
-
-
+# Load data
 df = pd.read_csv(os.path.join(path_file, "CaTCHseq_collation.txt"), sep="\t")
-
-# Transform from wide to long format
 df_long = pd.melt(df, 
                   id_vars=['Barcode', 'bc_id'], 
                   value_vars=['CaTCH_A_1mln', 'CaTCH_B_1mln', 'CaTCH_C_1mln','CaTCH_10k','CaTCH_15k','CaTCH_20k'],
                   var_name='sample', 
                   value_name='read_count')
 
-# Remove rows with NaN read counts
 df_long = df_long.dropna(subset=['read_count'])
-
-# Rename columns to match the original format
 df_long = df_long.rename(columns={'Barcode': 'GBC'})
 
-#apply filtering
-min_n_reads = 60
+#Filter
+min_n_reads = 1
 df_long = df_long[df_long['read_count'] > min_n_reads]
 
-# Calculate frequencies
+
 df_freq = (df_long.groupby('sample')
            .apply(lambda x: x.assign(
                freq=x['read_count'] / x['read_count'].sum(),    
@@ -41,18 +35,13 @@ df_freq = (df_long.groupby('sample')
            ))
            .reset_index(drop=True)
 )
-
-# Add origin column based on sample names (simplified for CaTCH data)
 df_freq['origin'] = df_freq['sample'] 
-
 df_freq.to_csv(os.path.join(path_results,'rel_freq.csv'))
-print("Available samples:", df_freq['sample'].unique())
 
-# Updated categories for CaTCH samples
+
 categories = ['CaTCH_10k', 'CaTCH_15k', 'CaTCH_20k', 'CaTCH_A_1mln', 'CaTCH_B_1mln',
  'CaTCH_C_1mln']
 categories_bubble = categories[::-1]
-
 
 #sample, Shannon entropy, origin, n_clones
 SH = []
@@ -108,11 +97,10 @@ for i, row in df_sample_sorted.iterrows():
 plu.format_ax(ax=ax, title='n barcodes by sample', ylabel='n barcodes', xticks=df_sample_sorted['sample'], rotx=90)
 ax.spines[['left', 'top', 'right']].set_visible(False)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, f'n_barcodes_filtered.png'), dpi=500)
+fig.savefig(os.path.join(path_results, f'n_barcodes_filtered_1thr.png'), dpi=500)
 
 
 #box,strip SH by condition
-
 fig, ax = plt.subplots(figsize=(8,6))
 plu.box(df_sample_sorted, x='origin', y='SH', ax=ax, add_stats=True,
     pairs=[['CaTCH_1','CaTCH_2'], ['CaTCH_3', 'CaTCH_1']]
@@ -120,7 +108,7 @@ plu.box(df_sample_sorted, x='origin', y='SH', ax=ax, add_stats=True,
 plu.strip(df_sample_sorted, x='origin', y='SH', ax=ax, color='k') #order=['ref','IME_CTRL','IME_dep','IMT_CTRL','IMT_COMBO','IMT_CTLA4']
 plu.format_ax(ax=ax, title='Shannon Entropy', ylabel='SH', rotx=90, reduced_spines=True)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, f'SH_filtered.png'), dpi=300)
+fig.savefig(os.path.join(path_results, f'SH_filtered_1thr.png'), dpi=300)
 
 # Cumulative clone percentage, all samples
 colors = plu.create_palette(df_freq, 'origin', plu.ten_godisnot)
@@ -135,7 +123,7 @@ for s in df_freq['sample'].unique():
 ax.set(title='Clone prevalences', xlabel='Ranked clones', ylabel='Cumulative frequence')
 plu.add_legend(ax=ax, colors=colors, bbox_to_anchor=(1,0), loc='lower right', ticks_size=8, label_size=10, artists_size=8)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, f'cum_percentages_filtered.png'), dpi=300)
+fig.savefig(os.path.join(path_results, f'cum_percentages_filtered_1thr.png'), dpi=300)
 
 #bubble plot filtered
 df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories_bubble)
@@ -176,7 +164,6 @@ df_freq['area_plot'] = df_freq['freq'] * (3000-5) + 5
 fig, ax = plt.subplots(figsize=(8.5, 8.5))
 plu.scatter(df_freq, 'GBC', 'sample', by='GBC', color=clones_colors, size='area_plot',alpha=0.5, ax=ax)
 plu.format_ax(ax, title='Clones by sample', xlabel='Clones', xticks='')
-#ax.text(.3, .23, f'n clones total: {df_freq_sorted["GBC"].unique().size}', transform=ax.transAxes)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results,'bubble_plot.png'),dpi=300)
 
@@ -196,14 +183,10 @@ freq_inputs.to_csv(
 top_10k = freq_inputs.nlargest(10, 'CaTCH_10k')['GBC']
 top_15k = freq_inputs.nlargest(10, 'CaTCH_15k')['GBC']
 top_20k = freq_inputs.nlargest(10, 'CaTCH_20k')['GBC']
-
-# Combine and get unique barcodes
 top_barcodes = pd.unique(pd.concat([top_10k, top_15k, top_20k]))
-
-# Subset the dataframe
 top = freq_inputs[freq_inputs['GBC'].isin(top_barcodes)].set_index('GBC')
 
-# Plot
+#Viz
 plt.figure(figsize=(12, 8))
 sns.heatmap(
     top[['CaTCH_10k','CaTCH_15k','CaTCH_20k']],
