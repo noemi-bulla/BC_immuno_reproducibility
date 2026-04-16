@@ -52,9 +52,7 @@ df_long['origin'] = np.select(tests, ['REF_A1', 'REF_B3', 'A1_PT', 'A1_LUNG', 'A
 min_n_reads = 60
 df_long = df_long[df_long['read_count'] > min_n_reads]
 
-for x in df_long['GBC']:
-    if 'N' in x:
-        print(x)
+
 
 df_freq = (df_long.groupby('sample')
            .apply(lambda x: x.assign(
@@ -71,6 +69,7 @@ categories = ['REF_A1','REF_B3','A1_2_PT','A1_2_LUNG','A1_2_CTC','A1_3_PT','A1_5
 categories_bubble = categories[::-1]
 
 #sample, Shannon entropy, origin, n_clones
+
 SH = []
 for s in df_freq['sample'].unique():
     df_ = df_freq.query('sample==@s')
@@ -128,6 +127,7 @@ fig.savefig(os.path.join(path_results, f'n_clones_filtered_60thr.png'), dpi=500)
 
 
 #box,strip SH by condition
+
 fig, ax = plt.subplots(figsize=(8,6))
 plu.box(df_sample_sorted, x='origin', y='SH', ax=ax, add_stats=True,
     pairs=[['A1_PT','A1_LUNG'],['A1_PT','A1_CTC'],['A1_LUNG','A1_CTC'],['B3_PT','B3_LUNG'],['B3_PT','B3_CTC'],['B3_LUNG','B3_CTC']])
@@ -137,6 +137,7 @@ fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'SH_filtered_60thr.png'), dpi=300)
 
 # Cumulative clone percentage, all samples
+
 colors = plu.create_palette(df_freq, 'origin', plu.ten_godisnot)
 
 fig, ax = plt.subplots(figsize=(4.5,4.5))
@@ -153,6 +154,7 @@ fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'cum_percentages_filtered_60thr.png'), dpi=300)
 
 #bubble plot filtered
+
 df_freq['sample'] = pd.Categorical(df_freq['sample'], categories=categories_bubble)
 df_freq.sort_values(by=['sample'], inplace=True)
 #Random colors for clones
@@ -226,27 +228,22 @@ plt.savefig(os.path.join(path_results, 'top_barcode_frequencies.png'), dpi=300)
 
 #Circled pack plot 
 
-# Extract sample ID (e.g., A1_2, A1_5, B3_1, B3_4) and tissue type
 df_freq_plot = df_freq.copy()
 parts = df_freq_plot['sample'].str.split('_', expand=True)
-df_freq_plot['sample_id'] = parts[0] + '_' + parts[1]  # e.g., A1_2, B3_1
-df_freq_plot['tissue'] = parts[2]  # e.g., PT, LUNG, CTC
+df_freq_plot['sample_id'] = parts[0] + '_' + parts[1]  
+df_freq_plot['tissue'] = parts[2] 
 
-# Filter out reference samples
 df_freq_plot = df_freq_plot[~df_freq_plot['sample_id'].isin(['A1', 'B3', 'REF_A1', 'REF_B3'])]
 
-# Define row order (sample IDs) and column order (tissues)
 sample_ids = ['A1_2', 'A1_5', 'B3_1', 'B3_4']
 tissues = sorted(df_freq_plot['tissue'].unique())[::-1]
 
-# Create figure with 4 rows (sample_ids) and variable columns (tissues)
 fig, axs = plt.subplots(len(sample_ids), len(tissues), figsize=(11, 12))
 
 for row, sample_id in enumerate(sample_ids):
     for col, tissue in enumerate(tissues):
         ax = axs[row, col]
         
-        # Get all clones that survived the 60-read filter
         df_all = df_freq_plot.query('sample_id==@sample_id and tissue==@tissue')
         n_all_clones = df_all['GBC'].nunique()
         
@@ -257,7 +254,6 @@ for row, sample_id in enumerate(sample_ids):
             df_, covariate='freq', ax=ax, color=clones_colors, annotate=True, t_cov=.05,
             alpha=.65, linewidth=2.5, fontsize=8, fontcolor='k', fontweight='medium'
         )
-        # Title shows: filtered clones / total clones (after 60-read filter)
         ax.set(title=f'{sample_id}_{tissue}\nShown: {n_filtered_clones}/{n_all_clones}')
 
 fig.tight_layout()
@@ -265,6 +261,7 @@ fig.savefig(os.path.join(path_results, 'circle_plot.png'), dpi=1000)
 
 
 #heatmap of common clones
+
 df = df_freq.copy()
 d = {sample: set(df[df['sample'] == sample]['GBC']) for sample in df['sample'].unique()}
 
